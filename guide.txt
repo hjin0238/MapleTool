@@ -1,0 +1,5 @@
+잠재DB복원
+
+docker exec -i mapletool-db-1 mysql -uroot -proot maple < C:\Users\hjin0238\Desktop\MapleTool\potential_backup.sql
+
+표에서 필터  name LIKE '스킬%'

@@ -7,7 +7,7 @@ from clicknium import clicknium as cc, locator
 from clicknium.core.models.web.browsertab import BrowserTab
 
 # db
-connection = pymysql.connect(host="localhost", user="root", password="root", db="maple")
+connection = pymysql.connect(host="localhost", port=3307, user="root", password="root", db="maple")
 cursor = connection.cursor()
 TABLE_NAME = "potential"
 QUERY_SELECT = f"SELECT * FROM {TABLE_NAME} WHERE type = %s AND grade = %s AND part = %s AND level = %s"
@@ -21,22 +21,22 @@ path_file = os.path.join(path_dir, "scrape-potential.txt")
 RETRY_COUNT = 2
 ROUND_NUM_DIGITS = 12
 type_to_urls = {
-    "레드": "https://maplestory.nexon.com/Guide/OtherProbability/cube/red",
+    #"레드": "https://maplestory.nexon.com/Guide/OtherProbability/cube/red",
     "블랙": "https://maplestory.nexon.com/Guide/OtherProbability/cube/black",
     "에디": "https://maplestory.nexon.com/Guide/OtherProbability/cube/addi",
-    "수상": "https://maplestory.nexon.com/Guide/OtherProbability/cube/strange",
-    "장인": "https://maplestory.nexon.com/Guide/OtherProbability/cube/master",
-    "명장": "https://maplestory.nexon.com/Guide/OtherProbability/cube/artisan",
-    "수에": "https://maplestory.nexon.com/Guide/OtherProbability/cube/strangeAddi",
+    #"수상": "https://maplestory.nexon.com/Guide/OtherProbability/cube/strange",
+    #"장인": "https://maplestory.nexon.com/Guide/OtherProbability/cube/master",
+    #"명장": "https://maplestory.nexon.com/Guide/OtherProbability/cube/artisan",
+    #"수에": "https://maplestory.nexon.com/Guide/OtherProbability/cube/strangeAddi",
 }
 type_to_grades = {
-    "레드": ["레어", "에픽", "유니크", "레전드리"],
+    #"레드": ["레어", "에픽", "유니크", "레전드리"],
     "블랙": ["레어", "에픽", "유니크", "레전드리"],
     "에디": ["레어", "에픽", "유니크", "레전드리"],
-    "수상": ["레어", "에픽"],
-    "장인": ["레어", "에픽", "유니크"],
-    "명장": ["레어", "에픽", "유니크", "레전드리"],
-    "수에": ["레어", "에픽"],
+    #"수상": ["레어", "에픽"],
+    #"장인": ["레어", "에픽", "유니크"],
+    #"명장": ["레어", "에픽", "유니크", "레전드리"],
+    #"수에": ["레어", "에픽"],
 }
 locators_grade = {
     "레어": locator.nexon.maplestory.grade.rare,
@@ -77,25 +77,25 @@ locators_probability = [
     locator.nexon.maplestory.option.probability3,
 ]
 levels = [
-    0,
-    10,
-    11,
-    20,
-    21,
-    30,
-    31,
-    40,
-    41,
-    50,
-    51,
-    60,
-    61,
-    70,
-    71,
-    80,
-    81,
-    90,
-    91,
+    #0,
+    #10,
+    #11,
+    #20,
+    #21,
+    #30,
+    #31,
+    #40,
+    #41,
+    #50,
+    #51,
+    #60,
+    #61,
+    #70,
+    #71,
+    #80,
+    #81,
+    #90,
+    #91,
     100,
     101,
     110,

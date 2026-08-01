@@ -1,7 +1,6 @@
 networks:
   default:
-    external: true
-    name: traefik
+    driver: bridge
 
 services:
   be:
@@ -18,10 +17,3 @@ services:
       GRAFANA_PASSWORD: ${GRAFANA_PASSWORD:?error}
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
-    labels:
-      traefik.enable: "true"
-      traefik.http.services.mapletool-be.loadbalancer.server.port: 8080
-      traefik.http.routers.mapletool-be.rule: Host(`maple.ygh.kr`) && PathPrefix(`/api`)
-      traefik.http.routers.mapletool-be.entrypoints: websecure
-      traefik.http.routers.mapletool-be.tls: "true"
-      traefik.http.routers.mapletool-be.tls.certresolver: letsencrypt

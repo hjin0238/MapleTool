@@ -130,7 +130,7 @@ export default function Potential({
 
   useEffect(() => {
     clearNewOptions();
-    //setConditionGrid([]); //자동설정 옵션세트 없애는거
+    setConditionGrid([]); //자동설정 옵션세트 없애는거
     if (intervalId) {
       setIntervalId(undefined);
       clearInterval(intervalId);

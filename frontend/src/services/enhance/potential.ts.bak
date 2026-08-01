@@ -16,7 +16,7 @@ export function parseGrade(grade: string) {
   if (!grade) return undefined;
 
   return Object.entries(POTENTIAL_INFOS).find(
-    ([_, info]) => info.name == grade,
+    ([_, info]) => info.name == grade
   )?.[0] as POTENTIAL_GRADE;
 }
 
@@ -41,7 +41,7 @@ export function calcRollingMaterials(
   materialType: MATERIAL_TYPE,
   level: number,
   addi: boolean,
-  grade: POTENTIAL_GRADE | undefined,
+  grade: POTENTIAL_GRADE | undefined
 ): Material[] {
   const cube = ![
     MATERIAL_TYPE.POTENTIAL,
@@ -110,10 +110,9 @@ export function nextPotential(
   options: string[],
   materialType: MATERIAL_TYPE,
   grade: POTENTIAL_GRADE | undefined,
-  guarantee: number,
-  doubleUpgrade: boolean = false,
+  guarantee: number
 ) {
-  const newGrade = nextGrade(materialType, grade, guarantee, doubleUpgrade);
+  const newGrade = nextGrade(materialType, grade, guarantee);
   const newOptions = nextValidOptions(potentialInfos, options, newGrade);
 
   return {
@@ -124,17 +123,13 @@ export function nextPotential(
 function nextGrade(
   materialType: MATERIAL_TYPE,
   grade: POTENTIAL_GRADE | undefined,
-  guarantee: number,
-  doubleUpgrade: boolean,
+  guarantee: number
 ) {
   if (!grade || !POTENTIAL_CRITERIA[materialType]) return POTENTIAL_GRADE.RARE;
 
   const criteria = POTENTIAL_CRITERIA[materialType][grade];
-  const upgradeChance = doubleUpgrade
-    ? Math.min(criteria.upgrade * 2, 1) ///미라클 확률 수정
-    : criteria.upgrade;
 
-  if (guarantee == criteria.bound || Math.random() < upgradeChance) {
+  if (guarantee == criteria.bound || Math.random() < criteria.upgrade) {
     const grades = Object.values(POTENTIAL_GRADE);
     const gradeIndex = Object.values(POTENTIAL_GRADE).indexOf(grade);
     return grades[gradeIndex + 1];
@@ -145,12 +140,12 @@ function nextGrade(
 function nextValidOptions(
   potentialInfos: PotentialResponse[],
   options: string[],
-  grade: POTENTIAL_GRADE,
+  grade: POTENTIAL_GRADE
 ) {
   const newOptions: PotentialResponse[] = new Array(3);
   const gradeName = POTENTIAL_INFOS[grade].name;
   const potentialInfosByGrade = potentialInfos.filter(
-    (p) => p.grade == gradeName,
+    (p) => p.grade == gradeName
   );
   const potentialInfosByPos = groupByPosition(potentialInfosByGrade);
 
@@ -184,42 +179,42 @@ function groupByPosition(potentialInfos: PotentialResponse[]) {
 }
 export function isValidOptions(
   prevOptions: string[],
-  newOptions: PotentialResponse[],
+  newOptions: PotentialResponse[]
 ) {
   if (
     newOptions.length &&
     newOptions.every(
       (newOption, i) =>
         newOption.name.replace("n", newOption.value.toString()) ==
-        prevOptions[i],
+        prevOptions[i]
     )
   )
     return false;
 
   if (
     newOptions.filter(
-      (newOption) => newOption && newOption.name.startsWith("<쓸만한"),
+      (newOption) => newOption && newOption.name.startsWith("<쓸만한")
     ).length > 1
   )
     return false;
 
   if (
     newOptions.filter(
-      (newOption) => newOption && newOption.name.startsWith("피격 후"),
+      (newOption) => newOption && newOption.name.startsWith("피격 후")
     ).length > 1
   )
     return false;
 
   if (
     newOptions.filter(
-      (newOption) => newOption && newOption.name.endsWith("n% 무시"),
+      (newOption) => newOption && newOption.name.endsWith("n% 무시")
     ).length > 2
   )
     return false;
 
   if (
     newOptions.filter(
-      (newOption) => newOption && newOption.name.endsWith("무적"),
+      (newOption) => newOption && newOption.name.endsWith("무적")
     ).length > 2
   )
     return false;

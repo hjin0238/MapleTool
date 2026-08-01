@@ -1,0 +1,69 @@
+import {
+  Flex,
+  Image,
+  Stack,
+  Tag,
+  Tooltip,
+  useColorMode,
+} from "@chakra-ui/react";
+import { useAppSelector } from "../../../stores/hooks";
+import { AnimatedCounter } from "react-animated-counter";
+import { getMaterialIcon } from "../../../utils/icon";
+import RequiredText from "../../../components/content/requiredText";
+
+export default function UsedMaterialTotal() {
+  const inventory = useAppSelector((state) => state.user.inventory);
+  const dark = useColorMode().colorMode == "dark";
+  const color = dark ? "white" : "black";
+
+  const totals = new Map<string, number>();
+  inventory.forEach((item) => {
+    item.used.forEach(({ name, value }) => {
+      totals.set(name, (totals.get(name) ?? 0) + value);
+    });
+  });
+  const totalList = Array.from(totals.entries()).map(([name, value]) => ({
+    name,
+    value,
+  }));
+
+  if (!totalList.length) {
+    return (
+      <Flex justify="center" pt="1px">
+        <RequiredText>사용한 재료가 없습니다.</RequiredText>
+      </Flex>
+    );
+  }
+
+  return (
+    <Flex pt={4} gap={2} justify={{ base: "center", md: "start" }} wrap="wrap">
+      {totalList.map(({ name, value }) => (
+        <Tooltip key={"total-material-" + name} label={name}>
+          <Tag position="relative" pt={2} pb={1}>
+            <Stack align="center">
+              <Flex position="relative" h={8} justify="center" align="end">
+                <Image src={getMaterialIcon(name)} />
+                {name.startsWith("메소") && (
+                  <Image
+                    h={4}
+                    src={getMaterialIcon(name.replace("메소 - ", ""))}
+                  />
+                )}
+              </Flex>
+              <AnimatedCounter
+                includeDecimals={false}
+                includeCommas
+                fontSize="12px"
+                decrementColor={color}
+                incrementColor={color}
+                color={color}
+                value={value}
+                containerStyles={{ paddingBottom: "1px" }}
+              />
+            </Stack>
+          </Tag>
+        </Tooltip>
+      ))}
+    </Flex>
+  );
+}

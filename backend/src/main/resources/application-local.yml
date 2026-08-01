@@ -1,0 +1,5 @@
+spring:
+  cloud.openfeign.client.config.open-api.default-request-headers.x-nxopen-api-key: live_a68b1aa39277f63b6d7ad7086ed04780ec4990f1cdd29a422aa24f5f9b8d0314efe8d04e6d233bd35cf2fabdeb93fb0d
+
+management:
+  otlp.metrics.export.enabled: false # 로컬에선 grafana로 안 보내도 됨

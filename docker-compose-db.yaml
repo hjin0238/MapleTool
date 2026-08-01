@@ -2,8 +2,7 @@ name: mapletool
 
 networks:
   default:
-    external: true
-    name: traefik
+    driver: bridge
 
 volumes:
   db:
@@ -15,7 +14,7 @@ services:
     ports: ["3307:3306"]
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?error}
-      MYSQL_DATABASE: learn
+      MYSQL_DATABASE: maple
       LANG: C.UTF-8
     volumes:
       - db:/var/lib/mysql
