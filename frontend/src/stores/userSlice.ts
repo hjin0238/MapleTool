@@ -154,9 +154,18 @@ const slice = createSlice({
 
     // inventory
     newInventory(state, action: PayloadAction<ItemEquipmentDetail>) {
+      const item = { ...action.payload };
+
+      if (!item.potential_option_grade) {
+        item.potential_option_grade = "레어";
+      }
+      if (!item.additional_potential_option_grade) {
+        item.additional_potential_option_grade = "레어";
+      }
+
       state.inventory.push({
-        before: action.payload,
-        after: action.payload,
+        before: item,
+        after: item,
         used: [],
         rollCounts: {},
       });
