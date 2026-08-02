@@ -18,6 +18,8 @@ const initialState: User = {
   bossPlans: [],
   inventory: [],
   guarantees: {},
+  materialLimitEnabled: false,
+  materialLimits: {},
 };
 
 const slice = createSlice({
@@ -243,6 +245,20 @@ const slice = createSlice({
       state.guarantees[action.payload.type]![action.payload.grade] =
         action.payload.value;
     },
+    // material limit
+    setMaterialLimitEnabled(state, action: PayloadAction<boolean>) {
+      state.materialLimitEnabled = action.payload;
+    },
+    setMaterialLimit(
+      state,
+      action: PayloadAction<{ name: string; limit: number }>,
+    ) {
+      if (action.payload.limit <= 0) {
+        delete state.materialLimits[action.payload.name];
+        return;
+      }
+      state.materialLimits[action.payload.name] = action.payload.limit;
+    },
   },
 });
 
@@ -282,4 +298,6 @@ export const {
   upgradeSpecialRing,
 
   setGuarantee,
+  setMaterialLimitEnabled,
+  setMaterialLimit,
 } = slice.actions;

@@ -19,6 +19,7 @@ import { useAppDispatch, useAppSelector } from "../../stores/hooks";
 import { useItemEquipmentQuery } from "../../stores/characterApi";
 import { MATERIAL_TYPE } from "../../constants/enhance/material";
 import UsedMaterial from "./5-usedMaterial/usedMaterial";
+import UsedMaterialTotal from "./5-usedMaterial/usedMaterialTotal";
 import { clearInventory, clearMaterials } from "../../stores/userSlice";
 
 export default function Enhance() {
@@ -132,6 +133,9 @@ export default function Enhance() {
           }
         >
           <UsedMaterial inventoryIndex={inventoryIndex} />
+        </BoardCard>
+        <BoardCard order={5} title="전체 사용 재료">
+          <UsedMaterialTotal />
         </BoardCard>
       </Stack>
       <Stack w={{ base: "100vw", md: "auto" }}>

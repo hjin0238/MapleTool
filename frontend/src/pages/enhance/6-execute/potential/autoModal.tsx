@@ -162,9 +162,15 @@ export default function AutoModal({
       conditions ?? [],
     );
     const probKeys = Object.keys(probabilitByConditions);
-    const isCompatible =
-      probKeys.length &&
-      isGradeLessOrEqualThan(grade, probKeys[probKeys.length - 1]);
+    const isCompatible = !conditions
+      ? false
+      : !conditions.length
+        ? // 옵션 없이 등급만 있는 세트: enum 순서로 직접 비교
+          !set?.targetGrade ||
+          Object.values(POTENTIAL_GRADE).indexOf(grade) <=
+            Object.values(POTENTIAL_GRADE).indexOf(set.targetGrade)
+        : probKeys.length > 0 &&
+          isGradeLessOrEqualThan(grade, probKeys[probKeys.length - 1]);
 
     const gradeOptions = Object.values(POTENTIAL_GRADE).map((g) => ({
       label: POTENTIAL_INFOS[g].name,
@@ -245,98 +251,103 @@ export default function AutoModal({
             />
           </Box>
         </Flex>
+        {!set?.targetGrade && (
+          <>
+            {conditions?.map((condition, i) => (
+              <Flex key={"condition-" + i} gap={2}>
+                <Box flex={1}>
+                  <Select
+                    size="sm"
+                    components={components}
+                    value={{
+                      label: condition.name,
+                      value: condition.name,
+                      grades: condition.grades,
+                    }}
+                    options={selectOptions}
+                    isOptionDisabled={(option) =>
+                      conditions.some(({ name }) => name == option.label)
+                    }
+                    onChange={(option) => {
+                      if (!option) {
+                        if (onDelete) onDelete(i);
+                        return;
+                      }
 
-        {conditions?.map((condition, i) => (
-          <Flex key={"condition-" + i} gap={2}>
-            <Box flex={1}>
-              <Select
-                size="sm"
-                components={components}
-                value={{
-                  label: condition.name,
-                  value: condition.name,
-                  grades: condition.grades,
-                }}
-                options={selectOptions}
-                isOptionDisabled={(option) =>
-                  conditions.some(({ name }) => name == option.label)
-                }
-                onChange={(option) => {
-                  if (!option) {
-                    if (onDelete) onDelete(i);
-                    return;
-                  }
+                      if (!onUpdate) return;
+                      const infosByName = conditionInfos[option.label];
+                      const value = Number(Object.keys(infosByName)[0]);
+                      const grades = new Set(Object.keys(infosByName[value]));
 
-                  if (!onUpdate) return;
-                  const infosByName = conditionInfos[option.label];
-                  const value = Number(Object.keys(infosByName)[0]);
-                  const grades = new Set(Object.keys(infosByName[value]));
+                      onUpdate({ name: option.label, value, grades }, i);
+                    }}
+                    isClearable
+                  />
+                </Box>
+                <Box w={24}>
+                  <Select
+                    size="sm"
+                    placeholder=""
+                    components={components}
+                    value={{
+                      label: condition.value.toString(),
+                      value: condition.value.toString(),
+                      grades: new Set(
+                        Object.keys(
+                          conditionInfos[condition.name][condition.value],
+                        ),
+                      ),
+                    }}
+                    options={Object.entries(conditionInfos[condition.name]).map(
+                      ([value, infosByValue]) => ({
+                        label: value,
+                        value,
+                        grades: new Set(Object.keys(infosByValue)),
+                      }),
+                    )}
+                    onChange={(option) => {
+                      if (!onUpdate || !option) return;
+                      const infosByName = conditionInfos[condition.name];
+                      const value = Number(option.value);
+                      const grades = new Set(Object.keys(infosByName[value]));
 
-                  onUpdate({ name: option.label, value, grades }, i);
-                }}
-                isClearable
-              />
-            </Box>
-            <Box w={24}>
-              <Select
-                size="sm"
-                placeholder=""
-                components={components}
-                value={{
-                  label: condition.value.toString(),
-                  value: condition.value.toString(),
-                  grades: new Set(
-                    Object.keys(
-                      conditionInfos[condition.name][condition.value],
-                    ),
-                  ),
-                }}
-                options={Object.entries(conditionInfos[condition.name]).map(
-                  ([value, infosByValue]) => ({
-                    label: value,
-                    value,
-                    grades: new Set(Object.keys(infosByValue)),
-                  }),
-                )}
-                onChange={(option) => {
-                  if (!onUpdate || !option) return;
-                  const infosByName = conditionInfos[condition.name];
-                  const value = Number(option.value);
-                  const grades = new Set(Object.keys(infosByName[value]));
+                      onUpdate({ name: condition.name, value, grades }, i);
+                    }}
+                  />
+                  <Text pl={4} pt={1} fontSize="small">
+                    이상
+                  </Text>
+                </Box>
+              </Flex>
+            ))}
+            {(conditions?.length ?? 0) < MAX_POTENTIALS && (
+              <Flex gap={2}>
+                <Box flex={1}>
+                  <Select
+                    size="sm"
+                    components={components}
+                    options={selectOptions}
+                    isOptionDisabled={(option) =>
+                      (conditions ?? []).some(
+                        ({ name }) => name == option.label,
+                      )
+                    }
+                    onChange={(option) => {
+                      if (!onCreate || !option) return;
+                      const infosByName = conditionInfos[option.label];
+                      const value = Number(Object.keys(infosByName)[0]);
+                      const grades = new Set(Object.keys(infosByName[value]));
 
-                  onUpdate({ name: condition.name, value, grades }, i);
-                }}
-              />
-              <Text pl={4} pt={1} fontSize="small">
-                이상
-              </Text>
-            </Box>
-          </Flex>
-        ))}
-        {(conditions?.length ?? 0) < MAX_POTENTIALS && (
-          <Flex gap={2}>
-            <Box flex={1}>
-              <Select
-                size="sm"
-                components={components}
-                options={selectOptions}
-                isOptionDisabled={(option) =>
-                  (conditions ?? []).some(({ name }) => name == option.label)
-                }
-                onChange={(option) => {
-                  if (!onCreate || !option) return;
-                  const infosByName = conditionInfos[option.label];
-                  const value = Number(Object.keys(infosByName)[0]);
-                  const grades = new Set(Object.keys(infosByName[value]));
-
-                  onCreate({ name: option.label, value, grades });
-                }}
-              />
-            </Box>
-            <Box w={24}>
-              <Select size="sm" placeholder="" components={components} />
-            </Box>
-          </Flex>
+                      onCreate({ name: option.label, value, grades });
+                    }}
+                  />
+                </Box>
+                <Box w={24}>
+                  <Select size="sm" placeholder="" components={components} />
+                </Box>
+              </Flex>
+            )}
+          </>
         )}
       </Stack>
     );

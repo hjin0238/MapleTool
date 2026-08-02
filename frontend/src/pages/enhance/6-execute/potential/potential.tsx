@@ -71,8 +71,15 @@ export default function Potential({
 
   const dispatch = useAppDispatch();
   const inventory = useAppSelector((state) => state.user.inventory);
+  const inventoryRef = useRef(inventory);
   const guarantees = useAppSelector((state) => state.user.guarantees);
   const guaranteesRef = useRef(guarantees);
+  const materialLimitEnabled = useAppSelector(
+    (state) => state.user.materialLimitEnabled,
+  );
+  const materialLimitEnabledRef = useRef(materialLimitEnabled);
+  const materialLimits = useAppSelector((state) => state.user.materialLimits);
+  const materialLimitsRef = useRef(materialLimits);
 
   const [newGrade, setNewGrade] = useState<POTENTIAL_GRADE>();
   const [newOptions, setNewOptions] = useState<PotentialResponse[]>([]);
@@ -123,6 +130,15 @@ export default function Potential({
     guaranteesRef.current = guarantees;
   }, [guarantees]);
   useEffect(() => {
+    inventoryRef.current = inventory;
+  }, [inventory]);
+  useEffect(() => {
+    materialLimitEnabledRef.current = materialLimitEnabled;
+  }, [materialLimitEnabled]);
+  useEffect(() => {
+    materialLimitsRef.current = materialLimits;
+  }, [materialLimits]);
+  useEffect(() => {
     costMaterialsRef.current = costMaterials;
   }, [costMaterials]);
   useEffect(() => {
@@ -143,6 +159,22 @@ export default function Potential({
   const clearNewOptions = () => {
     setNewGrade(undefined);
     setNewOptions([]);
+  };
+  const isLimitReached = () => {
+    if (!materialLimitEnabledRef.current) return false;
+
+    const totals = new Map<string, number>();
+    inventoryRef.current.forEach((invItem) => {
+      invItem.used.forEach(({ name, value }) => {
+        totals.set(name, (totals.get(name) ?? 0) + value);
+      });
+    });
+
+    return Array.from(totals.entries()).some(
+      ([name, value]) =>
+        materialLimitsRef.current[name] > 0 &&
+        value >= materialLimitsRef.current[name],
+    );
   };
   const applyOptions = (
     options: PotentialResponse[],
@@ -216,6 +248,11 @@ export default function Potential({
       return;
     }
 
+    if (isLimitReached()) {
+      toastWarning({ title: "재료 사용 제한에 도달했습니다." });
+      return;
+    }
+
     if (conditionGrid.length) {
       if (intervalId) {
         toastInfo({ title: "자동 재설정 중지" });
@@ -225,6 +262,13 @@ export default function Potential({
       }
 
       const startIntervalId = setInterval(() => {
+        if (isLimitReached()) {
+          toastWarning({ title: "재료 사용 제한으로 자동 재설정 중단" });
+          setIntervalId(undefined);
+          clearInterval(startIntervalId);
+          return;
+        }
+
         const newPotential = rollAndApplyPotential();
         if (!newPotential) return;
 
@@ -324,7 +368,11 @@ export default function Potential({
         <Button
           flex={1}
           size="xs"
-          isDisabled={!item || (selectable && newGrade && grade != newGrade)}
+          isDisabled={
+            !item ||
+            (selectable && newGrade && grade != newGrade) ||
+            isLimitReached()
+          }
           isLoading={isFetching}
           loadingText="데이터 요청중"
           colorScheme={intervalId ? "red" : undefined}
