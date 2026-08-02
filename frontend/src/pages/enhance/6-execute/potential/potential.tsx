@@ -90,7 +90,9 @@ export default function Potential({
   const [intervalId, setIntervalId] = useState<number>();
   const [doubleUpgrade, setDoubleUpgrade] = useState(false);
   const doubleUpgradeRef = useRef(doubleUpgrade);
-  const [pityStopEnabled, setPityStopEnabled] = useState(false);
+  const [pityStopEnabled, setPityStopEnabled] = useState<
+    Partial<Record<POTENTIAL_GRADE, boolean>>
+  >({});
   const pityStopEnabledRef = useRef(pityStopEnabled);
   const { isOpen, onOpen, onClose } = useDisclosure();
 
@@ -223,7 +225,6 @@ export default function Potential({
       const bound = POTENTIAL_CRITERIA[materialType][grade].bound;
       if (bound > 0) {
         pityTriggered = guarantee == bound - 1;
-
         dispatch(
           setGuarantee({
             type: materialType,
@@ -233,9 +234,8 @@ export default function Potential({
         );
       }
     }
-    dispatch(addMaterials({ index: inventoryIndex, materials: costMaterials }));
 
-    return { ...newPotential, pityTriggered };
+    return { ...newPotential, pityTriggered, pityGrade: grade };
   };
 
   const rollAndApplyPotential = () => {
@@ -281,7 +281,11 @@ export default function Potential({
         const newPotential = rollAndApplyPotential();
         if (!newPotential) return;
 
-        if (pityStopEnabledRef.current && newPotential.pityTriggered) {
+        if (
+          newPotential.pityGrade &&
+          pityStopEnabledRef.current[newPotential.pityGrade] &&
+          newPotential.pityTriggered
+        ) {
           toastInfo({ title: "천장 도달로 자동 재설정 중단" });
           setIntervalId(undefined);
           clearInterval(startIntervalId);
@@ -327,13 +331,43 @@ export default function Potential({
       >
         미라클
       </Checkbox>
-      <Checkbox
-        size="sm"
-        isChecked={pityStopEnabled}
-        onChange={(e) => setPityStopEnabled(e.target.checked)}
-      >
-        천장 도달 시 정지
-      </Checkbox>
+
+      <Stack spacing={1}>
+        <Text fontSize="sm">천장 도달 시 정지</Text>
+        <Flex gap={3} wrap="wrap">
+          {(
+            [
+              POTENTIAL_GRADE.RARE,
+              POTENTIAL_GRADE.EPIC,
+              POTENTIAL_GRADE.UNIQUE,
+            ] as const
+          ).map((g) => {
+            const bound = POTENTIAL_CRITERIA[materialType]?.[g]?.bound ?? -1;
+            if (bound <= 0) return null;
+
+            const grades = Object.values(POTENTIAL_GRADE);
+            const nextGradeName =
+              POTENTIAL_INFOS[grades[grades.indexOf(g) + 1]].name;
+
+            return (
+              <Checkbox
+                key={"pity-" + g}
+                size="sm"
+                isChecked={pityStopEnabled[g] ?? false}
+                onChange={(e) =>
+                  setPityStopEnabled((prev) => ({
+                    ...prev,
+                    [g]: e.target.checked,
+                  }))
+                }
+              >
+                {nextGradeName}
+              </Checkbox>
+            );
+          })}
+        </Flex>
+      </Stack>
+
       <Tag as={Flex} px={2} py={1} gap={2}>
         <Image src={MATERIAL_INFOS[materialType].icon} />
         <Text size="xs">
