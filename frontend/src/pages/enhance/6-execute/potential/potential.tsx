@@ -36,6 +36,7 @@ import {
 } from "../../../../services/enhance/potential";
 import {
   addMaterials,
+  addRollCount,
   setGuarantee,
   setInventoryPotential,
 } from "../../../../stores/userSlice";
@@ -235,7 +236,9 @@ export default function Potential({
       }
     }
     dispatch(addMaterials({ index: inventoryIndex, materials: costMaterials }));
-
+    if (grade) {
+      dispatch(addRollCount({ index: inventoryIndex, grade }));
+    }
     return { ...newPotential, pityTriggered, pityGrade: grade };
   };
 
