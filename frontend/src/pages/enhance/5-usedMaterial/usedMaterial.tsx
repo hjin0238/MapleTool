@@ -39,11 +39,15 @@ export default function UsedMaterial({
   }
 
   const rollCounts = enhancedItem.rollCounts ?? {};
+  const additionalRollCounts = enhancedItem.additionalRollCounts ?? {};
   const hasRollCounts = Object.values(rollCounts).some(
     (count) => (count ?? 0) > 0,
   );
+  const hasAdditionalRollCounts = Object.values(additionalRollCounts).some(
+    (count) => (count ?? 0) > 0,
+  );
 
-  if (!enhancedItem.used.length && !hasRollCounts) {
+  if (!enhancedItem.used.length && !hasRollCounts && !hasAdditionalRollCounts) {
     return (
       <Flex justify="center" pt="1px">
         <RequiredText>사용한 재료가 없습니다.</RequiredText>
@@ -54,17 +58,38 @@ export default function UsedMaterial({
   return (
     <Stack pt={2}>
       {hasRollCounts && (
-        <Flex gap={3} wrap="wrap">
-          {Object.values(POTENTIAL_GRADE).map(
-            (g) =>
-              (rollCounts[g] ?? 0) > 0 && (
-                <Text key={"roll-count-" + g} fontSize="sm">
-                  {POTENTIAL_INFOS[g].name}: {rollCounts[g]}회
-                </Text>
-              ),
+        <Stack spacing={1}>
+          <Flex gap={3} wrap="wrap">
+            <Text fontSize="sm" fontWeight="bold" w="full">
+              잠재능력
+            </Text>
+            {Object.values(POTENTIAL_GRADE).map(
+              (g) =>
+                (rollCounts[g] ?? 0) > 0 && (
+                  <Text key={"roll-count-" + g} fontSize="sm">
+                    {POTENTIAL_INFOS[g].name}: {rollCounts[g]}회
+                  </Text>
+                ),
+            )}
+          </Flex>
+          {hasAdditionalRollCounts && (
+            <Flex gap={3} wrap="wrap">
+              <Text fontSize="sm" fontWeight="bold" w="full">
+                에디셔널 잠재능력
+              </Text>
+              {Object.values(POTENTIAL_GRADE).map(
+                (g) =>
+                  (additionalRollCounts[g] ?? 0) > 0 && (
+                    <Text key={"addi-roll-count-" + g} fontSize="sm">
+                      {POTENTIAL_INFOS[g].name}: {additionalRollCounts[g]}회
+                    </Text>
+                  ),
+              )}
+            </Flex>
           )}
-        </Flex>
+        </Stack>
       )}
+
       <Flex gap={2} justify={{ base: "center", md: "start" }} wrap="wrap">
         {enhancedItem.used.map(({ name, value }) => (
           <Tooltip key={"material-" + name} label={name}>

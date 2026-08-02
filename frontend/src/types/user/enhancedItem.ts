@@ -6,6 +6,7 @@ export interface EnhancedItem {
   after: ItemEquipmentDetail;
   used: Material[];
   rollCounts: Partial<Record<POTENTIAL_GRADE, number>>;
+  additionalRollCounts: Partial<Record<POTENTIAL_GRADE, number>>;
 }
 
 export interface Material {

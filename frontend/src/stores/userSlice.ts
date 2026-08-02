@@ -168,6 +168,7 @@ const slice = createSlice({
         after: item,
         used: [],
         rollCounts: {},
+        additionalRollCounts: {},
       });
     },
     deleteInventory(state, action: PayloadAction<number>) {
@@ -178,11 +179,17 @@ const slice = createSlice({
     },
     addRollCount(
       state,
-      action: PayloadAction<{ index: number; grade: POTENTIAL_GRADE }>,
+      action: PayloadAction<{
+        index: number;
+        grade: POTENTIAL_GRADE;
+        addi: boolean;
+      }>,
     ) {
       const item = state.inventory[action.payload.index];
-      item.rollCounts[action.payload.grade] =
-        (item.rollCounts[action.payload.grade] ?? 0) + 1;
+      const target = action.payload.addi
+        ? item.additionalRollCounts
+        : item.rollCounts;
+      target[action.payload.grade] = (target[action.payload.grade] ?? 0) + 1;
     },
     addMaterials(
       state,
@@ -213,6 +220,7 @@ const slice = createSlice({
     clearMaterials(state, action: PayloadAction<number>) {
       state.inventory[action.payload].used = [];
       state.inventory[action.payload].rollCounts = {};
+      state.inventory[action.payload].additionalRollCounts = {};
     },
     setInventoryPotential(
       state,

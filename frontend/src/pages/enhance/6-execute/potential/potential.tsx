@@ -237,7 +237,7 @@ export default function Potential({
     }
     dispatch(addMaterials({ index: inventoryIndex, materials: costMaterials }));
     if (grade) {
-      dispatch(addRollCount({ index: inventoryIndex, grade }));
+      dispatch(addRollCount({ index: inventoryIndex, grade, addi }));
     }
     return { ...newPotential, pityTriggered, pityGrade: grade };
   };
