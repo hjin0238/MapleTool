@@ -11,6 +11,7 @@ import {
   useColorMode,
   useDisclosure,
 } from "@chakra-ui/react";
+import PotentialConditionSet from "../../../../types/character/itemEquipment/potential/potentialConditionSet";
 import {
   MATERIAL_INFOS,
   MATERIAL_TYPE,
@@ -76,7 +77,7 @@ export default function Potential({
   const [newGrade, setNewGrade] = useState<POTENTIAL_GRADE>();
   const [newOptions, setNewOptions] = useState<PotentialResponse[]>([]);
   const newOptionsRef = useRef(newOptions);
-  const [conditionGrid, setConditionGrid] = useState<PotentialCondition[][]>(
+  const [conditionGrid, setConditionGrid] = useState<PotentialConditionSet[]>(
     [],
   );
   const [intervalId, setIntervalId] = useState<number>();
@@ -227,7 +228,13 @@ export default function Potential({
         const newPotential = rollAndApplyPotential();
         if (!newPotential) return;
 
-        if (isFitConditions(conditionGrid, newPotential.options)) {
+        if (
+          isFitConditions(
+            conditionGrid,
+            newPotential.options,
+            newPotential.grade,
+          )
+        ) {
           toastSuccess({ title: "자동 재설정 성공" });
           setIntervalId(undefined);
           clearInterval(startIntervalId);
@@ -337,13 +344,25 @@ export default function Potential({
               : "재설정 시작"}
         </Button>
       </Flex>
-      {conditionGrid.map((conditions, i) => (
+      {conditionGrid.map((set, i) => (
         <Flex key={"conditions-" + i} gap={2}>
           <Badge size="xs" colorScheme="blue">
             {i + 1}
           </Badge>
           <Flex gap={2} wrap="wrap">
-            {conditions.map((condition, j) => (
+            {set.targetGrade && (
+              <Tag
+                size="xs"
+                px={1}
+                py={0.5}
+                bgColor={POTENTIAL_INFOS[set.targetGrade].imageColor}
+                color={POTENTIAL_INFOS[set.targetGrade].textColor}
+                fontSize="var(--chakra-fontSizes-xs)"
+              >
+                {POTENTIAL_INFOS[set.targetGrade].name}
+              </Tag>
+            )}
+            {set.conditions.map((condition, j) => (
               <Tag
                 key={"condition-" + j}
                 size="xs"

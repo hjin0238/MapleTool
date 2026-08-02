@@ -19,7 +19,9 @@ import PotentialResponse from "../../../../types/character/itemEquipment/potenti
 import {
   MAX_POTENTIALS,
   POTENTIAL_GRADE,
+  POTENTIAL_INFOS,
 } from "../../../../constants/enhance/potential";
+import PotentialConditionSet from "../../../../types/character/itemEquipment/potential/potentialConditionSet";
 import {
   Select,
   chakraComponents,
@@ -56,16 +58,16 @@ export default function AutoModal({
   onClose: () => void;
   grade: POTENTIAL_GRADE;
   potentialInfos: PotentialResponse[];
-  conditionGrid: PotentialCondition[][];
-  setConditionGrid: (value: PotentialCondition[][]) => void;
+  conditionGrid: PotentialConditionSet[];
+  setConditionGrid: (value: PotentialConditionSet[]) => void;
 }) {
   const conditionInfos = useMemo(
     () => calcConditionInfos(potentialInfos),
-    [potentialInfos]
+    [potentialInfos],
   );
   const selectOptions = useMemo(
     () => convertConditionInfosToSelectOptions(conditionInfos),
-    [conditionInfos]
+    [conditionInfos],
   );
 
   const components: SelectComponentsConfig<Option, false, GroupBase<Option>> = {
@@ -83,7 +85,7 @@ export default function AutoModal({
   const onChange = (
     newCondition?: PotentialCondition,
     setIndex?: number,
-    optionIndex?: number
+    optionIndex?: number,
   ) => {
     const temp = [...conditionGrid];
 
@@ -94,40 +96,80 @@ export default function AutoModal({
         setConditionGrid(temp);
         return;
       }
-      temp[setIndex].splice(optionIndex, 1);
+      temp[setIndex] = {
+        ...temp[setIndex],
+        conditions: temp[setIndex].conditions.filter(
+          (_, i) => i != optionIndex,
+        ),
+      };
       setConditionGrid(temp);
       return;
     }
 
-    if (setIndex == undefined) temp.push([newCondition]);
-    else if (optionIndex == undefined) temp[setIndex].push(newCondition);
-    else temp[setIndex][optionIndex] = newCondition;
+    if (setIndex == undefined) {
+      temp.push({ conditions: [newCondition] });
+    } else if (optionIndex == undefined) {
+      temp[setIndex] = {
+        ...temp[setIndex],
+        conditions: [...temp[setIndex].conditions, newCondition],
+      };
+    } else {
+      const conditions = [...temp[setIndex].conditions];
+      conditions[optionIndex] = newCondition;
+      temp[setIndex] = { ...temp[setIndex], conditions };
+    }
 
+    setConditionGrid(temp);
+  };
+
+  const onGradeChange = (
+    setIndex: number | undefined,
+    targetGrade?: POTENTIAL_GRADE,
+  ) => {
+    const temp = [...conditionGrid];
+
+    if (setIndex == undefined) {
+      // "추가" 행에서 옵션 없이 등급만 고른 경우 → 새 세트 생성
+      if (!targetGrade) return;
+      temp.push({ conditions: [], targetGrade });
+      setConditionGrid(temp);
+      return;
+    }
+
+    temp[setIndex] = { ...temp[setIndex], targetGrade };
     setConditionGrid(temp);
   };
 
   const Row = ({
     title,
-    conditions,
+    set,
     onCreate,
     onUpdate,
     onDelete,
+    onGrade,
   }: {
     title: string;
-    conditions?: PotentialCondition[];
+    set?: PotentialConditionSet;
     onCreate?: (value: PotentialCondition) => void;
     onUpdate?: (value: PotentialCondition, setIndex: number) => void;
     onDelete?: (optionIndex?: number) => void;
+    onGrade?: (targetGrade?: POTENTIAL_GRADE) => void;
   }) => {
+    const conditions = set?.conditions;
     const probabilitByConditions = calcProbabilityByConditions(
       potentialInfos,
       conditionInfos,
-      conditions ?? []
+      conditions ?? [],
     );
     const probKeys = Object.keys(probabilitByConditions);
     const isCompatible =
       probKeys.length &&
       isGradeLessOrEqualThan(grade, probKeys[probKeys.length - 1]);
+
+    const gradeOptions = Object.values(POTENTIAL_GRADE).map((g) => ({
+      label: POTENTIAL_INFOS[g].name,
+      value: g,
+    }));
 
     return (
       <Stack pb={4}>
@@ -165,7 +207,7 @@ export default function AutoModal({
                   </Button>
                 </Tooltip>
               );
-            }
+            },
           )}
           <Spacer />
           {title.endsWith("추가") || (
@@ -178,6 +220,32 @@ export default function AutoModal({
             </Button>
           )}
         </Flex>
+
+        <Flex gap={2} align="center">
+          <Text fontSize="sm" whiteSpace="nowrap">
+            도달 시 마무리 등급
+          </Text>
+          <Box w={32}>
+            <Select
+              size="sm"
+              placeholder="선택 안 함"
+              isClearable
+              value={
+                set?.targetGrade
+                  ? {
+                      label: POTENTIAL_INFOS[set.targetGrade].name,
+                      value: set.targetGrade,
+                    }
+                  : null
+              }
+              options={gradeOptions}
+              onChange={(option) =>
+                onGrade && onGrade(option?.value as POTENTIAL_GRADE)
+              }
+            />
+          </Box>
+        </Flex>
+
         {conditions?.map((condition, i) => (
           <Flex key={"condition-" + i} gap={2}>
             <Box flex={1}>
@@ -218,7 +286,9 @@ export default function AutoModal({
                   label: condition.value.toString(),
                   value: condition.value.toString(),
                   grades: new Set(
-                    Object.keys(conditionInfos[condition.name][condition.value])
+                    Object.keys(
+                      conditionInfos[condition.name][condition.value],
+                    ),
                   ),
                 }}
                 options={Object.entries(conditionInfos[condition.name]).map(
@@ -226,7 +296,7 @@ export default function AutoModal({
                     label: value,
                     value,
                     grades: new Set(Object.keys(infosByValue)),
-                  })
+                  }),
                 )}
                 onChange={(option) => {
                   if (!onUpdate || !option) return;
@@ -284,24 +354,24 @@ export default function AutoModal({
         </ModalHeader>
         <ModalCloseButton />
         <ModalBody>
-          {conditionGrid.map((conditions, i) => (
+          {conditionGrid.map((set, i) => (
             <Row
               key={"conditions-" + i}
               title={"옵션세트 " + (i + 1)}
-              conditions={conditions}
+              set={set}
               onCreate={(newCondition) => onChange(newCondition, i)}
               onUpdate={(newCondition, setIndex) =>
                 onChange(newCondition, i, setIndex)
               }
               onDelete={(optionIndex) => onChange(undefined, i, optionIndex)}
+              onGrade={(targetGrade) => onGradeChange(i, targetGrade)}
             />
           ))}
-          {
-            <Row
-              title={"옵션세트 추가"}
-              onCreate={(newCondition) => onChange(newCondition)}
-            />
-          }
+          <Row
+            title={"옵션세트 추가"}
+            onCreate={(newCondition) => onChange(newCondition)}
+            onGrade={(targetGrade) => onGradeChange(undefined, targetGrade)}
+          />
         </ModalBody>
       </ModalContent>
     </Modal>
@@ -309,7 +379,7 @@ export default function AutoModal({
 }
 
 function convertConditionInfosToSelectOptions(
-  conditionInfos: ConditionInfos
+  conditionInfos: ConditionInfos,
 ): Option[] {
   return Object.entries(conditionInfos).map(([name, infosByName]) => ({
     label: name,
@@ -319,7 +389,7 @@ function convertConditionInfosToSelectOptions(
         Object.keys(infosByValue).forEach((grade) => acc.add(grade));
         return acc;
       },
-      new Set<string>()
+      new Set<string>(),
     ),
   }));
 }
