@@ -234,6 +234,7 @@ export default function Potential({
         );
       }
     }
+    dispatch(addMaterials({ index: inventoryIndex, materials: costMaterials }));
 
     return { ...newPotential, pityTriggered, pityGrade: grade };
   };
