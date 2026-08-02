@@ -4,6 +4,7 @@ import artifact from "../assets/link/artifact.svg";
 import Artifact from "../pages/artifact/page";
 import Crystal from "../pages/crystal/page";
 import Enhance from "../pages/enhance/page";
+import Strategy from "../pages/strategy/page";
 
 export const LINKS: {
   name: string;
@@ -28,5 +29,11 @@ export const LINKS: {
     label: "보스수익",
     icon: crystal,
     element: <Crystal />,
+  },
+  {
+    name: "strategy",
+    label: "전략계산기",
+    icon: enhance,
+    element: <Strategy />,
   },
 ];
