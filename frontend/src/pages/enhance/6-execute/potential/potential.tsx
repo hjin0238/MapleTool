@@ -90,6 +90,8 @@ export default function Potential({
   const [intervalId, setIntervalId] = useState<number>();
   const [doubleUpgrade, setDoubleUpgrade] = useState(false);
   const doubleUpgradeRef = useRef(doubleUpgrade);
+  const [pityStopEnabled, setPityStopEnabled] = useState(false);
+  const pityStopEnabledRef = useRef(pityStopEnabled);
   const { isOpen, onOpen, onClose } = useDisclosure();
 
   const item = inventory[inventoryIndex].after;
@@ -144,6 +146,9 @@ export default function Potential({
   useEffect(() => {
     doubleUpgradeRef.current = doubleUpgrade;
   }, [doubleUpgrade]);
+  useEffect(() => {
+    pityStopEnabledRef.current = pityStopEnabled;
+  }, [pityStopEnabled]);
 
   useEffect(() => {
     clearNewOptions();
@@ -213,9 +218,12 @@ export default function Potential({
       doubleUpgradeRef.current,
     );
 
+    let pityTriggered = false;
     if (grade && POTENTIAL_CRITERIA[materialType]) {
       const bound = POTENTIAL_CRITERIA[materialType][grade].bound;
       if (bound > 0) {
+        pityTriggered = guarantee == bound - 1;
+
         dispatch(
           setGuarantee({
             type: materialType,
@@ -227,8 +235,9 @@ export default function Potential({
     }
     dispatch(addMaterials({ index: inventoryIndex, materials: costMaterials }));
 
-    return newPotential;
+    return { ...newPotential, pityTriggered };
   };
+
   const rollAndApplyPotential = () => {
     const newPotential = rollPotential();
     if (!newPotential) return;
@@ -272,6 +281,13 @@ export default function Potential({
         const newPotential = rollAndApplyPotential();
         if (!newPotential) return;
 
+        if (pityStopEnabledRef.current && newPotential.pityTriggered) {
+          toastInfo({ title: "천장 도달로 자동 재설정 중단" });
+          setIntervalId(undefined);
+          clearInterval(startIntervalId);
+          return;
+        }
+
         if (
           isFitConditions(
             conditionGrid,
@@ -310,6 +326,13 @@ export default function Potential({
         onChange={(e) => setDoubleUpgrade(e.target.checked)}
       >
         미라클
+      </Checkbox>
+      <Checkbox
+        size="sm"
+        isChecked={pityStopEnabled}
+        onChange={(e) => setPityStopEnabled(e.target.checked)}
+      >
+        천장 도달 시 정지
       </Checkbox>
       <Tag as={Flex} px={2} py={1} gap={2}>
         <Image src={MATERIAL_INFOS[materialType].icon} />
