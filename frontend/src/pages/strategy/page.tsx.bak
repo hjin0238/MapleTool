@@ -1,0 +1,443 @@
+import {
+  Badge,
+  Box,
+  Button,
+  Checkbox,
+  Flex,
+  IconButton,
+  Input,
+  NumberInput,
+  NumberInputField,
+  Select,
+  Stack,
+  Text,
+} from "@chakra-ui/react";
+import { useMemo, useState } from "react";
+import { LuPlus, LuTrash2 } from "react-icons/lu";
+import {
+  MATERIAL_INFOS,
+  MATERIAL_TYPE,
+} from "../../constants/enhance/material";
+import {
+  POTENTIAL_CRITERIA,
+  POTENTIAL_GRADE,
+  POTENTIAL_INFOS,
+} from "../../constants/enhance/potential";
+import { calcRollingMaterials, isAddi } from "../../services/enhance/potential";
+import BoardCard from "../../components/layout/boardCard";
+
+interface StrategyItem {
+  id: string;
+  label: string;
+  materialType: MATERIAL_TYPE;
+  level: number;
+  currentGrade: POTENTIAL_GRADE;
+  currentGuarantee: number;
+  doubleUpgrade: boolean;
+  baseValue: number;
+  wantsOption: boolean;
+  optionProbability: number; // 0~100
+  optionValue: number;
+  legendaryValue: number;
+}
+
+const MATERIAL_OPTIONS = Object.keys(POTENTIAL_CRITERIA) as MATERIAL_TYPE[];
+const GRADES = Object.values(POTENTIAL_GRADE);
+
+function createDefaultItem(): StrategyItem {
+  return {
+    id: Math.random().toString(36).slice(2),
+    label: "새 장비",
+    materialType: MATERIAL_OPTIONS[0],
+    level: 250,
+    currentGrade: POTENTIAL_GRADE.RARE,
+    currentGuarantee: 0,
+    doubleUpgrade: false,
+    baseValue: 0,
+    wantsOption: true,
+    optionProbability: 5,
+    optionValue: 0,
+    legendaryValue: 0,
+  };
+}
+
+function calcRollCost(
+  materialType: MATERIAL_TYPE,
+  level: number,
+  grade: POTENTIAL_GRADE
+) {
+  const materials = calcRollingMaterials(
+    materialType,
+    level,
+    isAddi(materialType),
+    grade
+  );
+  return materials.find((m) => m.name.startsWith("메소"))?.value ?? 0;
+}
+
+function expectedRolls(p: number, remainingBound: number) {
+  if (p <= 0) return remainingBound > 0 ? remainingBound : Infinity;
+  if (remainingBound <= 0) return 1 / p;
+  return (1 - Math.pow(1 - p, remainingBound)) / p;
+}
+
+function calcStrategy(item: StrategyItem) {
+  const currentIndex = GRADES.indexOf(item.currentGrade);
+  const legendaryIndex = GRADES.length - 1;
+  const uniqueIndex = GRADES.indexOf(POTENTIAL_GRADE.UNIQUE);
+
+  if (currentIndex >= legendaryIndex) {
+    return {
+      expectedCost: 0,
+      expectedValueGain: item.legendaryValue - item.baseValue,
+      reachable: true,
+    };
+  }
+
+  let expectedCost = 0;
+  let optionShare = 0; // 유니크 단계에서 "옵션으로 성공"할 확률 비중 (근사치)
+
+  for (let stageIndex = currentIndex; stageIndex < legendaryIndex; stageIndex++) {
+    const stageGrade = GRADES[stageIndex];
+    const criteria = POTENTIAL_CRITERIA[item.materialType]?.[stageGrade];
+    if (!criteria) return { expectedCost: Infinity, expectedValueGain: 0, reachable: false };
+
+    const bound = criteria.bound;
+    const upgradeChance = item.doubleUpgrade
+      ? Math.min(criteria.upgrade * 2, 1)
+      : criteria.upgrade;
+    const guarantee = stageIndex == currentIndex ? item.currentGuarantee : 0;
+    const remainingBound = bound > 0 ? Math.max(bound - guarantee, 1) : -1;
+    const costPerRoll = calcRollCost(item.materialType, item.level, stageGrade);
+
+    if (stageIndex == uniqueIndex && item.wantsOption) {
+      const pOpt = item.optionProbability / 100;
+      const combinedP = 1 - (1 - pOpt) * (1 - upgradeChance);
+      const rolls = expectedRolls(combinedP, remainingBound);
+      expectedCost += rolls * costPerRoll;
+      optionShare =
+        pOpt + upgradeChance > 0 ? pOpt / (pOpt + upgradeChance) : 0;
+      return {
+        expectedCost,
+        expectedValueGain:
+          optionShare * item.optionValue +
+          (1 - optionShare) * item.legendaryValue -
+          item.baseValue,
+        reachable: true,
+      };
+    }
+
+    const rolls = expectedRolls(upgradeChance, remainingBound);
+    expectedCost += rolls * costPerRoll;
+  }
+
+  return {
+    expectedCost,
+    expectedValueGain: item.legendaryValue - item.baseValue,
+    reachable: true,
+  };
+}
+
+export default function Strategy() {
+  const [items, setItems] = useState<StrategyItem[]>([createDefaultItem()]);
+  const [budget, setBudget] = useState(0);
+
+  const updateItem = (id: string, patch: Partial<StrategyItem>) => {
+    setItems((prev) =>
+      prev.map((item) => (item.id == id ? { ...item, ...patch } : item))
+    );
+  };
+
+  const results = useMemo(() => {
+    const computed = items.map((item) => {
+      const { expectedCost, expectedValueGain, reachable } = calcStrategy(item);
+      const ratio = expectedCost > 0 ? expectedValueGain / expectedCost : 0;
+      return { item, expectedCost, expectedValueGain, ratio, reachable };
+    });
+
+    const sorted = [...computed].sort((a, b) => b.ratio - a.ratio);
+    let remaining = budget;
+    let totalValueGain = 0;
+    const allocation = new Map<string, boolean>();
+
+    sorted.forEach(({ item, expectedCost, expectedValueGain, reachable }) => {
+      if (reachable && remaining >= expectedCost) {
+        remaining -= expectedCost;
+        totalValueGain += expectedValueGain;
+        allocation.set(item.id, true);
+      } else {
+        allocation.set(item.id, false);
+      }
+    });
+
+    return { computed, sorted, remaining, totalValueGain, allocation };
+  }, [items, budget]);
+
+  return (
+    <BoardCard order={1} title="전략 계산기">
+      <Stack gap={4} width={{ base: "100%", md: "container.md" }}>
+        <Text fontSize="sm" color="gray.500">
+          입력한 장비들의 기대 비용 대비 가치를 계산해서, 예산을 어디에 먼저
+          쓰는 게 유리한지 우선순위를 제안합니다. (근사 계산이며 실제 결과와
+          다를 수 있습니다)
+        </Text>
+
+        <Flex align="center" gap={2}>
+          <Text fontSize="sm" whiteSpace="nowrap">
+            보유 메소
+          </Text>
+          <NumberInput
+            size="sm"
+            value={budget}
+            onChange={(_, v) => setBudget(isNaN(v) ? 0 : v)}
+            min={0}
+          >
+            <NumberInputField />
+          </NumberInput>
+        </Flex>
+
+        {items.map((item) => (
+          <Box
+            key={item.id}
+            borderWidth={1}
+            borderRadius={8}
+            p={3}
+            position="relative"
+          >
+            <IconButton
+              aria-label="delete"
+              icon={<LuTrash2 size={14} />}
+              size="xs"
+              position="absolute"
+              top={2}
+              right={2}
+              variant="ghost"
+              colorScheme="red"
+              onClick={() =>
+                setItems((prev) => prev.filter((i) => i.id != item.id))
+              }
+            />
+            <Stack gap={2}>
+              <Input
+                size="sm"
+                width="200px"
+                value={item.label}
+                onChange={(e) =>
+                  updateItem(item.id, { label: e.target.value })
+                }
+              />
+
+              <Flex gap={2} wrap="wrap" align="center">
+                <Select
+                  size="sm"
+                  width="180px"
+                  value={item.materialType}
+                  onChange={(e) =>
+                    updateItem(item.id, {
+                      materialType: e.target.value as MATERIAL_TYPE,
+                    })
+                  }
+                >
+                  {MATERIAL_OPTIONS.map((m) => (
+                    <option key={m} value={m}>
+                      {MATERIAL_INFOS[m].name}
+                    </option>
+                  ))}
+                </Select>
+
+                <NumberInput
+                  size="sm"
+                  width="100px"
+                  value={item.level}
+                  onChange={(_, v) =>
+                    updateItem(item.id, { level: isNaN(v) ? 0 : v })
+                  }
+                  min={0}
+                >
+                  <NumberInputField placeholder="레벨" />
+                </NumberInput>
+
+                <Select
+                  size="sm"
+                  width="120px"
+                  value={item.currentGrade}
+                  onChange={(e) =>
+                    updateItem(item.id, {
+                      currentGrade: e.target.value as POTENTIAL_GRADE,
+                    })
+                  }
+                >
+                  {GRADES.map((g) => (
+                    <option key={g} value={g}>
+                      {POTENTIAL_INFOS[g].name}
+                    </option>
+                  ))}
+                </Select>
+
+                <NumberInput
+                  size="sm"
+                  width="120px"
+                  value={item.currentGuarantee}
+                  onChange={(_, v) =>
+                    updateItem(item.id, {
+                      currentGuarantee: isNaN(v) ? 0 : v,
+                    })
+                  }
+                  min={0}
+                >
+                  <NumberInputField placeholder="현재 천장 카운터" />
+                </NumberInput>
+
+                <Checkbox
+                  size="sm"
+                  isChecked={item.doubleUpgrade}
+                  onChange={(e) =>
+                    updateItem(item.id, { doubleUpgrade: e.target.checked })
+                  }
+                >
+                  미라클
+                </Checkbox>
+              </Flex>
+
+              <Flex gap={2} wrap="wrap" align="center">
+                <Text fontSize="xs" whiteSpace="nowrap">
+                  기본 가치
+                </Text>
+                <NumberInput
+                  size="sm"
+                  width="140px"
+                  value={item.baseValue}
+                  onChange={(_, v) =>
+                    updateItem(item.id, { baseValue: isNaN(v) ? 0 : v })
+                  }
+                  min={0}
+                >
+                  <NumberInputField />
+                </NumberInput>
+
+                <Text fontSize="xs" whiteSpace="nowrap">
+                  레전드리 가치
+                </Text>
+                <NumberInput
+                  size="sm"
+                  width="140px"
+                  value={item.legendaryValue}
+                  onChange={(_, v) =>
+                    updateItem(item.id, {
+                      legendaryValue: isNaN(v) ? 0 : v,
+                    })
+                  }
+                  min={0}
+                >
+                  <NumberInputField />
+                </NumberInput>
+              </Flex>
+
+              <Flex gap={2} wrap="wrap" align="center">
+                <Checkbox
+                  size="sm"
+                  isChecked={item.wantsOption}
+                  onChange={(e) =>
+                    updateItem(item.id, { wantsOption: e.target.checked })
+                  }
+                >
+                  유니크 유효 옵션도 성공으로 인정
+                </Checkbox>
+                {item.wantsOption && (
+                  <>
+                    <Text fontSize="xs" whiteSpace="nowrap">
+                      유효 옵션 확률(%)
+                    </Text>
+                    <NumberInput
+                      size="sm"
+                      width="100px"
+                      value={item.optionProbability}
+                      onChange={(_, v) =>
+                        updateItem(item.id, {
+                          optionProbability: isNaN(v) ? 0 : v,
+                        })
+                      }
+                      min={0}
+                      max={100}
+                    >
+                      <NumberInputField />
+                    </NumberInput>
+                    <Text fontSize="xs" whiteSpace="nowrap">
+                      유효 옵션 가치
+                    </Text>
+                    <NumberInput
+                      size="sm"
+                      width="140px"
+                      value={item.optionValue}
+                      onChange={(_, v) =>
+                        updateItem(item.id, {
+                          optionValue: isNaN(v) ? 0 : v,
+                        })
+                      }
+                      min={0}
+                    >
+                      <NumberInputField />
+                    </NumberInput>
+                  </>
+                )}
+              </Flex>
+            </Stack>
+          </Box>
+        ))}
+
+        <Button
+          size="sm"
+          leftIcon={<LuPlus />}
+          onClick={() => setItems((prev) => [...prev, createDefaultItem()])}
+        >
+          장비 추가
+        </Button>
+
+        <Box borderWidth={1} borderRadius={8} p={3}>
+          <Text fontWeight="bold" pb={2}>
+            계산 결과 (기대값 대비 효율 순)
+          </Text>
+          <Stack gap={2}>
+            {results.sorted.map(
+              ({ item, expectedCost, expectedValueGain, reachable }, i) => (
+                <Flex key={item.id} align="center" gap={2} wrap="wrap">
+                  <Badge colorScheme={results.allocation.get(item.id) ? "green" : "gray"}>
+                    {i + 1}순위
+                  </Badge>
+                  <Text fontSize="sm" fontWeight="bold">
+                    {item.label}
+                  </Text>
+                  {!reachable ? (
+                    <Text fontSize="sm" color="red.400">
+                      계산 불가 (재료 설정 확인)
+                    </Text>
+                  ) : (
+                    <>
+                      <Text fontSize="sm">
+                        기대 비용: {Math.round(expectedCost).toLocaleString()}메소
+                      </Text>
+                      <Text fontSize="sm">
+                        기대 가치 증가: {Math.round(expectedValueGain).toLocaleString()}
+                      </Text>
+                      <Text fontSize="sm">
+                        {results.allocation.get(item.id)
+                          ? "예산 내 완료 가능"
+                          : "예산 부족"}
+                      </Text>
+                    </>
+                  )}
+                </Flex>
+              )
+            )}
+            <Text fontSize="sm" pt={2}>
+              남는 예산: {Math.round(results.remaining).toLocaleString()}메소
+            </Text>
+            <Text fontSize="sm" fontWeight="bold">
+              예상 총 가치 증가: {Math.round(results.totalValueGain).toLocaleString()}
+            </Text>
+          </Stack>
+        </Box>
+      </Stack>
+    </BoardCard>
+  );
+}
