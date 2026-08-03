@@ -9,7 +9,7 @@ echo [1/4] Checking Docker Desktop...
 tasklist /FI "IMAGENAME eq Docker Desktop.exe" 2>NUL | find /I /N "Docker Desktop.exe">NUL
 if "%ERRORLEVEL%"=="1" (
     echo Starting Docker Desktop, please wait...
-    start "" "C:\Program Files\Docker\Docker\Docker Desktop.exe"
+    start "" "C:\Users\hjin0238\AppData\Local\Programs\DockerDesktop\Docker Desktop.exe"
     timeout /t 20 /nobreak
 ) else (
     echo Docker Desktop already running.
