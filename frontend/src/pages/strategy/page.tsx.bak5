@@ -1,0 +1,496 @@
+import {
+  Badge,
+  Box,
+  Button,
+  Checkbox,
+  Flex,
+  IconButton,
+  Image,
+  Input,
+  NumberInput,
+  NumberInputField,
+  Select as NativeSelect,
+  Stack,
+  Text,
+} from "@chakra-ui/react";
+import {
+  POTENTIAL_CRITERIA,
+  POTENTIAL_GRADE,
+  POTENTIAL_INFOS,
+} from "../../constants/enhance/potential";
+import {
+  Select,
+  chakraComponents,
+  GroupBase,
+  SelectComponentsConfig,
+} from "chakra-react-select";
+import { getPotentialIcon } from "../../services/enhance/potential";
+import { useEffect, useMemo, useState } from "react";
+import { LuPlus, LuTrash2 } from "react-icons/lu";
+import BoardCard from "../../components/layout/boardCard";
+import {
+  MATERIAL_INFOS,
+  MATERIAL_TYPE,
+} from "../../constants/enhance/material";
+import { isSelectable } from "../../services/enhance/potential";
+import {
+  calcConditionInfos,
+  calcProbabilityByConditions,
+} from "../../services/enhance/potentialCondition";
+import { usePotentialQuery } from "../../stores/characterApi";
+
+const SELECTABLE_MATERIALS = (
+  Object.keys(MATERIAL_INFOS) as MATERIAL_TYPE[]
+).filter(isSelectable);
+
+interface OptionSelectItem {
+  label: string;
+  value: string;
+  grades: Set<string>;
+}
+
+interface GameOptionRow {
+  id: string;
+  name: string;
+  value: number;
+  userValue: number;
+}
+
+interface Candidate {
+  id: string;
+  label: string;
+  materialType: MATERIAL_TYPE;
+  level: number;
+  part: string;
+  doubleUpgrade: boolean;
+  currentValue: number;
+  legendaryValue: number;
+  pityConfirmed: boolean;
+  options: GameOptionRow[];
+}
+
+interface CandidateResult {
+  ev: number;
+  deltaE: number;
+  netGain: number;
+  legendaryProbability: number;
+}
+
+function createCandidate(): Candidate {
+  return {
+    id: Math.random().toString(36).slice(2),
+    label: "새 장비",
+    materialType: SELECTABLE_MATERIALS[0],
+    level: 250,
+    part: "",
+    doubleUpgrade: false,
+    currentValue: 0,
+    legendaryValue: 0,
+    pityConfirmed: false,
+    options: [],
+  };
+}
+
+function CandidateCard({
+  candidate,
+  isRecommended,
+  onChange,
+  onDelete,
+  onResult,
+}: {
+  candidate: Candidate;
+  isRecommended: boolean;
+  onChange: (patch: Partial<Candidate>) => void;
+  onDelete: () => void;
+  onResult: (r: CandidateResult) => void;
+}) {
+  const { data } = usePotentialQuery({
+    type: MATERIAL_INFOS[candidate.materialType].type,
+    part: candidate.part,
+    level: candidate.level,
+  });
+
+  const conditionInfos = useMemo(() => calcConditionInfos(data ?? []), [data]);
+  const nameOptions: OptionSelectItem[] = Object.entries(conditionInfos).map(
+    ([name, infosByName]) => ({
+      label: name,
+      value: name,
+      grades: Object.values(infosByName).reduce<Set<string>>(
+        (acc, infosByValue) => {
+          Object.keys(infosByValue).forEach((grade) => acc.add(grade));
+          return acc;
+        },
+        new Set<string>(),
+      ),
+    }),
+  );
+
+  const selectComponents: SelectComponentsConfig<
+    OptionSelectItem,
+    false,
+    GroupBase<OptionSelectItem>
+  > = {
+    Option: ({ children, ...props }) => (
+      <chakraComponents.Option {...props}>
+        {children}
+        <Box flex={1} />
+        {[...props.data.grades].map((grade) => (
+          <Image key={grade} src={getPotentialIcon(grade)} boxSize={4} />
+        ))}
+      </chakraComponents.Option>
+    ),
+  };
+
+  const criteria =
+    POTENTIAL_CRITERIA[candidate.materialType]?.[POTENTIAL_GRADE.UNIQUE];
+  const legendaryProbability = criteria
+    ? Math.min(criteria.upgrade * (candidate.doubleUpgrade ? 2 : 1), 1)
+    : 0;
+
+  const optionEV = candidate.options.reduce((sum, o) => {
+    const infosByName = conditionInfos[o.name];
+    if (!infosByName || !infosByName[o.value]) return sum;
+    const grades = new Set(Object.keys(infosByName[o.value]));
+    const prob =
+      calcProbabilityByConditions(data ?? [], conditionInfos, [
+        { name: o.name, value: o.value, grades },
+      ])[POTENTIAL_INFOS[POTENTIAL_GRADE.UNIQUE].name] ?? 0;
+    return sum + prob * o.userValue;
+  }, 0);
+
+  const ev = legendaryProbability * candidate.legendaryValue + optionEV;
+  const deltaE = ev - candidate.currentValue;
+  const netGain = candidate.legendaryValue - candidate.currentValue;
+
+  useEffect(() => {
+    onResult({ ev, deltaE, netGain, legendaryProbability });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ev, deltaE, netGain, legendaryProbability]);
+
+  const addOptionRow = (name: string) => {
+    const infosByName = conditionInfos[name];
+    if (!infosByName) return;
+    const value = Number(Object.keys(infosByName)[0]);
+    onChange({
+      options: [
+        ...candidate.options,
+        { id: Math.random().toString(36).slice(2), name, value, userValue: 0 },
+      ],
+    });
+  };
+  const updateOptionRow = (id: string, patch: Partial<GameOptionRow>) => {
+    onChange({
+      options: candidate.options.map((o) =>
+        o.id == id ? { ...o, ...patch } : o,
+      ),
+    });
+  };
+  const deleteOptionRow = (id: string) => {
+    onChange({ options: candidate.options.filter((o) => o.id != id) });
+  };
+
+  const probabilityOf = (name: string, value: number) => {
+    const infosByName = conditionInfos[name];
+    if (!infosByName || !infosByName[value]) return 0;
+    const grades = new Set(Object.keys(infosByName[value]));
+    const prob = calcProbabilityByConditions(data ?? [], conditionInfos, [
+      { name, value, grades },
+    ]);
+    return prob[POTENTIAL_INFOS[POTENTIAL_GRADE.UNIQUE].name] ?? 0;
+  };
+
+  return (
+    <Box
+      borderWidth={2}
+      borderColor={isRecommended ? "green.400" : "inherit"}
+      borderRadius={8}
+      p={3}
+      position="relative"
+    >
+      <IconButton
+        aria-label="delete"
+        icon={<LuTrash2 size={14} />}
+        size="xs"
+        position="absolute"
+        top={2}
+        right={2}
+        variant="ghost"
+        colorScheme="red"
+        onClick={onDelete}
+      />
+      <Stack gap={2}>
+        <Flex align="center" gap={2}>
+          <Input
+            size="sm"
+            width="200px"
+            value={candidate.label}
+            onChange={(e) => onChange({ label: e.target.value })}
+          />
+          {isRecommended && <Badge colorScheme="green">추천</Badge>}
+        </Flex>
+
+        <Flex gap={2} wrap="wrap" align="center">
+          <NativeSelect
+            size="sm"
+            width="180px"
+            value={candidate.materialType}
+            onChange={(e) =>
+              onChange({ materialType: e.target.value as MATERIAL_TYPE })
+            }
+          >
+            {SELECTABLE_MATERIALS.map((m) => (
+              <option key={m} value={m}>
+                {MATERIAL_INFOS[m].name}
+              </option>
+            ))}
+          </NativeSelect>
+          <Input
+            size="sm"
+            width="100px"
+            placeholder="부위 (예: 모자)"
+            value={candidate.part}
+            onChange={(e) => onChange({ part: e.target.value })}
+          />
+          <NumberInput
+            size="sm"
+            width="90px"
+            value={candidate.level}
+            onChange={(_, v) => onChange({ level: isNaN(v) ? 0 : v })}
+            min={0}
+          >
+            <NumberInputField placeholder="레벨" />
+          </NumberInput>
+          <Checkbox
+            size="sm"
+            isChecked={candidate.doubleUpgrade}
+            onChange={(e) => onChange({ doubleUpgrade: e.target.checked })}
+          >
+            미라클
+          </Checkbox>
+        </Flex>
+
+        <Checkbox
+          size="sm"
+          isChecked={candidate.pityConfirmed}
+          onChange={(e) => onChange({ pityConfirmed: e.target.checked })}
+        >
+          다음 1회로 천장 확정 (등급업 100%)
+        </Checkbox>
+
+        <Flex gap={2} wrap="wrap" align="center">
+          <Text fontSize="xs" whiteSpace="nowrap">
+            현재 옵션 가치 (V_U)
+          </Text>
+          <NumberInput
+            size="sm"
+            width="140px"
+            value={candidate.currentValue}
+            onChange={(_, v) => onChange({ currentValue: isNaN(v) ? 0 : v })}
+          >
+            <NumberInputField />
+          </NumberInput>
+
+          <Text fontSize="xs" whiteSpace="nowrap">
+            레전드리 가치 (V_L)
+          </Text>
+          <NumberInput
+            size="sm"
+            width="140px"
+            value={candidate.legendaryValue}
+            onChange={(_, v) => onChange({ legendaryValue: isNaN(v) ? 0 : v })}
+          >
+            <NumberInputField />
+          </NumberInput>
+
+          {!candidate.pityConfirmed && (
+            <Text fontSize="xs" color="gray.500">
+              등급업 확률 P_L: {(legendaryProbability * 100).toFixed(3)}% (재료
+              기준 자동 계산)
+            </Text>
+          )}
+        </Flex>
+
+        {!candidate.pityConfirmed && (
+          <Stack gap={1}>
+            <Text fontSize="xs" fontWeight="bold">
+              유효 옵션 목록 (실제 확률표에서 선택) — 옵션 개수:{" "}
+              {nameOptions.length}
+            </Text>
+            {candidate.options.map((o) => {
+              const valueOptions = conditionInfos[o.name]
+                ? Object.entries(conditionInfos[o.name]).map(
+                    ([v, infosByValue]) => ({
+                      label: v,
+                      value: v,
+                      grades: new Set(Object.keys(infosByValue)),
+                    }),
+                  )
+                : [];
+              const prob = probabilityOf(o.name, o.value);
+
+              return (
+                <Flex key={o.id} gap={2} align="center" wrap="wrap">
+                  <Box minW="200px">
+                    <Select
+                      size="sm"
+                      components={selectComponents}
+                      value={{
+                        label: o.name,
+                        value: o.name,
+                        grades:
+                          nameOptions.find((n) => n.value === o.name)?.grades ??
+                          new Set(),
+                      }}
+                      options={nameOptions}
+                      onChange={(opt) =>
+                        opt && updateOptionRow(o.id, { name: opt.value })
+                      }
+                    />
+                  </Box>
+                  <Box minW="100px">
+                    <Select
+                      size="sm"
+                      components={selectComponents}
+                      value={{
+                        label: o.value.toString(),
+                        value: o.value.toString(),
+                        grades: new Set(
+                          conditionInfos[o.name]?.[o.value]
+                            ? Object.keys(conditionInfos[o.name][o.value])
+                            : [],
+                        ),
+                      }}
+                      options={valueOptions}
+                      onChange={(opt) =>
+                        opt &&
+                        updateOptionRow(o.id, { value: Number(opt.value) })
+                      }
+                    />
+                  </Box>
+                  <Text fontSize="xs" whiteSpace="nowrap">
+                    확률: {(prob * 100).toFixed(3)}%
+                  </Text>
+                  <Text fontSize="xs" whiteSpace="nowrap">
+                    가치
+                  </Text>
+                  <NumberInput
+                    size="sm"
+                    width="120px"
+                    value={o.userValue}
+                    onChange={(_, v) =>
+                      updateOptionRow(o.id, { userValue: isNaN(v) ? 0 : v })
+                    }
+                  >
+                    <NumberInputField />
+                  </NumberInput>
+                  <IconButton
+                    aria-label="delete-option"
+                    icon={<LuTrash2 size={12} />}
+                    size="xs"
+                    variant="ghost"
+                    colorScheme="red"
+                    onClick={() => deleteOptionRow(o.id)}
+                  />
+                </Flex>
+              );
+            })}
+            <Box minW="200px">
+              <Select
+                size="sm"
+                components={selectComponents}
+                placeholder="옵션 추가..."
+                value={null}
+                options={nameOptions}
+                onChange={(opt) => opt && addOptionRow(opt.value)}
+              />
+            </Box>
+          </Stack>
+        )}
+
+        <Box pt={2} borderTopWidth={1}>
+          {candidate.pityConfirmed ? (
+            <Text fontSize="sm">
+              Net Gain (V_L - V_U): <b>{netGain.toLocaleString()}</b>
+            </Text>
+          ) : (
+            <>
+              <Text fontSize="sm">EV: {ev.toLocaleString()}</Text>
+              <Text fontSize="sm">
+                ΔE (EV - V_U): <b>{deltaE.toLocaleString()}</b>
+              </Text>
+            </>
+          )}
+        </Box>
+      </Stack>
+    </Box>
+  );
+}
+
+export default function Strategy() {
+  const [candidates, setCandidates] = useState<Candidate[]>([
+    createCandidate(),
+  ]);
+  const [resultsMap, setResultsMap] = useState<Record<string, CandidateResult>>(
+    {},
+  );
+
+  const updateCandidate = (id: string, patch: Partial<Candidate>) => {
+    setCandidates((prev) =>
+      prev.map((c) => (c.id == id ? { ...c, ...patch } : c)),
+    );
+  };
+
+  const recommendedId = useMemo(() => {
+    const list = candidates
+      .filter((c) => resultsMap[c.id])
+      .map((c) => ({
+        id: c.id,
+        pityConfirmed: c.pityConfirmed,
+        ...resultsMap[c.id],
+      }));
+    if (!list.length) return undefined;
+
+    const anyConfirmed = list.some((r) => r.pityConfirmed);
+    if (anyConfirmed) {
+      const confirmedOnes = list.filter((r) => r.pityConfirmed);
+      return confirmedOnes.reduce((best, cur) =>
+        cur.netGain > best.netGain ? cur : best,
+      ).id;
+    }
+    return list.reduce((best, cur) => (cur.deltaE > best.deltaE ? cur : best))
+      .id;
+  }, [candidates, resultsMap]);
+
+  return (
+    <BoardCard order={1} title="전략 계산기">
+      <Stack gap={4} width={{ base: "100%", md: "container.md" }}>
+        <Text fontSize="sm" color="gray.500">
+          지금 재설정 1회를 어느 장비에 쓰는 게 유리한지, 실제 확률표 기준으로
+          계산합니다. 부위/레벨/재료를 정확히 입력하면 옵션 확률을 자동으로
+          가져옵니다.
+        </Text>
+
+        {candidates.map((c) => (
+          <CandidateCard
+            key={c.id}
+            candidate={c}
+            isRecommended={recommendedId == c.id}
+            onChange={(patch) => updateCandidate(c.id, patch)}
+            onDelete={() =>
+              setCandidates((prev) => prev.filter((x) => x.id != c.id))
+            }
+            onResult={(r) => setResultsMap((prev) => ({ ...prev, [c.id]: r }))}
+          />
+        ))}
+
+        <Button
+          size="sm"
+          leftIcon={<LuPlus />}
+          onClick={() => setCandidates((prev) => [...prev, createCandidate()])}
+        >
+          장비 추가
+        </Button>
+      </Stack>
+    </BoardCard>
+  );
+}
